@@ -3,6 +3,7 @@
  *4 мая 2021г
  *10 мая 2021 SI4734 поддерживает SSB с тем же патчем что и SI4735!!!
  *16 мая 2021 добавлен автопоиск станций в ам.
+ *24 августа 2024 добавлена возможность менять шаг автопоиска ам
  **********************************************************************/
 
 #ifndef SI4734_H
@@ -142,11 +143,13 @@ uint8_t si4734_powerdown();
 uint16_t si4734_get_prop(uint16_t prop);
 uint8_t si4734_set_prop(uint16_t prop, uint16_t val);
 uint8_t si4734_get_int_status();
-void si4734_am_seek(uint16_t freq,uint8_t up);
+void si4734_am_seek(uint16_t freq, uint8_t up, uint8_t step);
 uint8_t si4734_fm_mode();
 uint8_t si4734_ssb_patch_mode(uint8_t *patch);
 uint8_t si4734_fm_set_freq(uint16_t freq_10khz);
 uint8_t si4734_get_freq(uint16_t *freq,uint8_t *snr, uint8_t *rssi);
+uint8_t si4734_get_freq_v2(uint16_t *freq);
+uint8_t si4734_am_signal_status(uint8_t *resp1,uint8_t *resp2,uint8_t *rssi,uint8_t *snr);
 uint8_t si4734_fm_signal_status(uint8_t *rssi,uint8_t *snr,int8_t *freq_of);
 uint8_t si4734_get_rev(void);
 uint8_t si4734_am_set_freq(uint16_t freq_khz);

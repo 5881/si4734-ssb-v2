@@ -20,7 +20,7 @@ uint16_t pos=0;
 
 //псевдо utf8
 //до 00x7f ascii после кирилическая страница без перфиксов
-static const char ASCII[][5] =
+static const uint8_t ASCII[][5] =
 {{0x00, 0x00, 0x00, 0x00, 0x00} // 20  
 ,{0x00, 0x00, 0x5f, 0x00, 0x00} // 21 !
 ,{0x00, 0x07, 0x00, 0x07, 0x00} // 22 "
@@ -229,7 +229,7 @@ void oled_send_cmd2(uint8_t *cmd, uint16_t n){
 		}
 	}
 
-void oled_send_data2(uint8_t *data, uint16_t n){
+void oled_send_data2(const uint8_t *data, uint16_t n){
 	//Здесь пришлось чуть перепелить код из libopencm3
 	i2c_set_7bit_address(OLEDI2C, OLEDADDR);
 	i2c_set_write_transfer_dir(OLEDI2C);
@@ -440,7 +440,7 @@ void oled_clear(void){
 
 void oled_ascii_tst(void){
 	oled_set_col_block(0,127,0,7);
-	oled_send_data2(ASCII,0xcf*5);
+	oled_send_data2((uint8_t *)ASCII,0xcf*5);
 	}
 
 void oled_send_char(char ch){

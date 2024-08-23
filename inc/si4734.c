@@ -3,6 +3,7 @@
  *4 мая 2021г
  *10 мая 2021 SI4734 поддерживает SSB с тем же патчем что и SI4735!!!
  *16 мая 2021 добавлен автопоиск станций в ам.
+ *24 августа 2024 добавлена возможность менять шаг автопоиска ам
  **********************************************************************/
 
 #include <libopencm3/stm32/gpio.h>
@@ -99,7 +100,7 @@ uint8_t si4734_get_int_status(){
 	return status; 
 }
 
-void si4734_am_seek(uint16_t freq, uint8_t up){
+void si4734_am_seek(uint16_t freq, uint8_t up, uint8_t step){
 	uint8_t cmd[6]={AM_SEEK_START,(1<<3),0,0,0,1}; //AN332 p138
 	uint16_t top,bottom;
 	//чтобы поиск на долго не вешал приёмник, ограничим диапазон до 500Кгц
@@ -108,7 +109,7 @@ void si4734_am_seek(uint16_t freq, uint8_t up){
 	if(freq<400) bottom=200;else bottom=freq-200;
 	si4734_set_prop(AM_SEEK_BAND_TOP,top);
 	si4734_set_prop(AM_SEEK_BAND_BOTTOM,bottom);
-	si4734_set_prop(AM_SEEK_FREQ_SPACING,5);
+	si4734_set_prop(AM_SEEK_FREQ_SPACING,(uint16_t)step);
 	si4734_set_prop(AM_SEEK_SNR_THRESHOLD,1);
 	//uint16_t freq;
 	//uint8_t rssi,snr;

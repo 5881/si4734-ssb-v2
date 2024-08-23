@@ -2,6 +2,8 @@
  * начата разработка интерфейса
  * 10 мая 2021 SI4734 поддерживает SSB с тем же патчем что и SI4735!!! 
  * В качестве контроллера использован stm32f030
+ * 24 августа 2024 добавлен шаг в 4 кгц для АМ, шаг перестройки SSB 
+ * уменьшен до 50
  */
 
 
@@ -62,7 +64,7 @@ int16_t vol=0x1a;
 120 метров (средние волны), 2.30 — 2.495 МГц (130,43 — 120,24 метра).
 */
 uint16_t bands[]={200,1000,3100,3600,5800,7200,9300,11200,13500,14200,15100,17450,21500,27000};
-uint8_t steps[]={1,5,10,50};
+uint8_t steps[]={1,4,5,10,50};
 uint8_t reciver_mode=0;
 //0 - am, 1 -fm, 2 - ssb
 
@@ -100,94 +102,6 @@ uint8_t pcf_read(void){
  * 0xfe 0xfd 0xfb 0xf7
  * 0xef 0xdf 0xbf 0x7f
  */ 
-void keyboard(void){
-	uint8_t key;
-	if(!gpio_get(GPIOA,GPIO1)){
-		while(!gpio_get(GPIOA,GPIO1));
-			encoder_mode=0;
-			if(reciver_mode==SSB_MODE){
-				encoder=encoder-bfo/1000;
-				bfo=bfo%1000;
-				}
-			}
-	key=pcf_read();
-	if(key!=0xff){
-		//реагируем на клавиатуру
-		led_toggle();
-		o_printf_at(0,7,1,0,"Key code 0x%x",key);
-		switch(key){
-			case 0xfe:
-				//reciver_set_mode(AM_MODE);
-				reciver_next_mode();
-				break;
-			case 0xfd:
-					if(reciver_mode==AM_MODE){
-					si4734_am_seek(encoder,0);
-					si4734_get_freq_v2(&encoder);}
-				//stop();
-				break;
-			case 0xfb:
-				//reciver_set_mode(SSB_MODE);
-				if(reciver_mode==AM_MODE){
-					si4734_am_seek(encoder,1);
-					si4734_get_freq_v2(&encoder);}
-				break;
-			case 0xef:
-				encoder_mode=1;
-				break;
-			case 0xdf:
-				//encoder_mode=2;
-				next_step();
-				break;
-			case 0xbf:
-				if(reciver_mode==2){
-					encoder_mode=3;//BFO только в режиме SSB
-					encoder-=bfo/1000;
-					bfo=bfo%1000;
-				}
-				break;
-			case 0x7f:
-				//si4734_volume(-7);//тише
-				encoder_mode=4;
-				break;
-			case 0xf7:
-				//si4734_volume(7);//громче
-				reciver_am_ssb_mode();
-				break;
-		}
-	}
-	while(pcf_read()!=0xff);
-	}
-
-
-void pcf_init(void){
-	rcc_periph_clock_enable(RCC_GPIOA);
-	gpio_mode_setup(GPIOA, GPIO_MODE_INPUT,
-					GPIO_PUPD_NONE, GPIO0);
-	//exti_select_source(EXTI0,GPIOA);
-	//exti_set_trigger(EXTI0,EXTI_TRIGGER_FALLING);
-	//nvic_enable_irq(NVIC_EXTI0_1_IRQ);
-	//exti_enable_request(EXTI0);
-	pcf_write(0xff);
-	
-}
-
-void reciver_next_mode(){
-	static uint8_t rm=1;
-	rm+=1;
-	if(rm>2)rm=0;
-	reciver_set_mode(rm);
-}
-void reciver_am_ssb_mode(void){
-	switch (reciver_mode){
-		case AM_MODE:
-			reciver_set_mode(SSB_MODE);
-			break;
-		case SSB_MODE:
-			reciver_set_mode(AM_MODE);
-			break;
-		}
-	}
 
 void reciver_set_mode(uint8_t rec_mod){
 static uint16_t amfreq=15200,fmfreq=8910;//запоминаем старое значение 
@@ -199,7 +113,7 @@ if(rec_mod==AM_MODE){
 	si4734_am_mode();
 	si4734_set_prop(AM_CHANNEL_FILTER, 0x0100);
 	si4734_set_prop(AM_SOFT_MUTE_MAX_ATTENUATION, 0);//soft mute off
-	si4734_set_prop(AM_AUTOMATIC_VOLUME_CONTROL_MAX_GAIN, 0x5000); //60дб
+	si4734_set_prop(AM_AUTOMATIC_VOLUME_CONTROL_MAX_GAIN, 0x1a94); //20дб
 	si4734_set_prop(RX_VOLUME, vol);
 	//si4734_set_prop(AM_SEEK_BAND_TOP, 30000);
 	MIN_LIMIT=200;
@@ -244,6 +158,40 @@ if(rec_mod==AM_MODE){
 	
 }
 
+
+
+
+
+void pcf_init(void){
+	rcc_periph_clock_enable(RCC_GPIOA);
+	gpio_mode_setup(GPIOA, GPIO_MODE_INPUT,
+					GPIO_PUPD_NONE, GPIO0);
+	//exti_select_source(EXTI0,GPIOA);
+	//exti_set_trigger(EXTI0,EXTI_TRIGGER_FALLING);
+	//nvic_enable_irq(NVIC_EXTI0_1_IRQ);
+	//exti_enable_request(EXTI0);
+	pcf_write(0xff);
+	
+}
+
+void reciver_next_mode(){
+	static uint8_t rm=1;
+	rm+=1;
+	if(rm>2)rm=0;
+	reciver_set_mode(rm);
+}
+void reciver_am_ssb_mode(void){
+	switch (reciver_mode){
+		case AM_MODE:
+			reciver_set_mode(SSB_MODE);
+			break;
+		case SSB_MODE:
+			reciver_set_mode(AM_MODE);
+			break;
+		}
+	}
+
+
 void select_band(int8_t direction){
 	static int8_t band=5;
 	band+=direction;
@@ -255,7 +203,7 @@ void select_step(int8_t direction){
 	static int8_t step=1;
 	step+=direction;
 	if(step<0)step=0;
-	if(step>3)step=3;
+	if(step>4)step=3;
 	coef=steps[step];
 	}
 
@@ -263,7 +211,7 @@ void next_step(void){
 	static int8_t step=1;
 	step++;
 	if(step<0)step=3;
-	if(step>3)step=0;
+	if(step>4)step=0;
 	coef=steps[step];
 	}
 
@@ -315,7 +263,7 @@ void exti2_3_isr(void){
 	//	}
 	if(encoder_mode==1)select_band(encoder_direction);
 	if(encoder_mode==2)select_step(encoder_direction);
-	if(encoder_mode==3)bfo-=100*encoder_direction;
+	if(encoder_mode==3)bfo-=50*encoder_direction;
 	if(encoder_mode==4){vol+=7*encoder_direction;
 						if(vol<0)vol=0;
 						if(vol>0x3f)vol=0x3f;};
@@ -433,6 +381,65 @@ uint8_t get_recivier_signal_status(uint8_t *snr,uint8_t *rssi,uint8_t *freq_of){
 		}
 	return status;
 	}
+	
+void keyboard(void){
+	uint8_t key;
+	if(!gpio_get(GPIOA,GPIO1)){
+		while(!gpio_get(GPIOA,GPIO1));
+			encoder_mode=0;
+			if(reciver_mode==SSB_MODE){
+				encoder=encoder-bfo/1000;
+				bfo=bfo%1000;
+				}
+			}
+	key=pcf_read();
+	if(key!=0xff){
+		//реагируем на клавиатуру
+		led_toggle();
+		o_printf_at(0,7,1,0,"Key code 0x%x",key);
+		switch(key){
+			case 0xfe:
+				//reciver_set_mode(AM_MODE);
+				reciver_next_mode();
+				break;
+			case 0xfd:
+					if(reciver_mode==AM_MODE){
+					si4734_am_seek(encoder,0,coef);
+					si4734_get_freq_v2(&encoder);}
+				//stop();
+				break;
+			case 0xfb:
+				//reciver_set_mode(SSB_MODE);
+				if(reciver_mode==AM_MODE){
+					si4734_am_seek(encoder,1,coef);
+					si4734_get_freq_v2(&encoder);}
+				break;
+			case 0xef:
+				encoder_mode=1;
+				break;
+			case 0xdf:
+				//encoder_mode=2;
+				next_step();
+				break;
+			case 0xbf:
+				if(reciver_mode==2){
+					encoder_mode=3;//BFO только в режиме SSB
+					encoder-=bfo/1000;
+					bfo=bfo%1000;
+				}
+				break;
+			case 0x7f:
+				//si4734_volume(-7);//тише
+				encoder_mode=4;
+				break;
+			case 0xf7:
+				//si4734_volume(7);//громче
+				reciver_am_ssb_mode();
+				break;
+		}
+	}
+	while(pcf_read()!=0xff);
+	}
 /********************************************************************
  * Секция функций оформления дисплея
  ********************************************************************/
@@ -496,6 +503,8 @@ void main(){
 	uint16_t old_vol=0x1A;
 	//test();
 	//o_printf("si4734 init start");
+	//Есть баг с инициализациией приёмника, поэтому добавим задержку
+	for(uint32_t i=0; i<0xffff;i++)__asm__("nop");
 	rcc_clock_setup_in_hsi_out_48mhz();
 	//gpio_setup();
 	exti_encoder_init();

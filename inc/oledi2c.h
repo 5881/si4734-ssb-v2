@@ -11,10 +11,11 @@
 
 
 void oled_init(void);
+void oled_clear(void);
 void oled_send_cmd(uint8_t cmd);
 void oled_send_cmd2(uint8_t *cmd, uint16_t n);
 void oled_send_data(uint8_t data);
-void oled_send_data2(uint8_t *data, uint16_t n);
+void oled_send_data2(const uint8_t *data, uint16_t n);
 void oled_send_n_bytes_data(uint8_t byte, uint8_t n);
 
 void oled_set_col_block(uint8_t start_col,uint8_t end_col, uint8_t start_row, uint8_t end_row);
