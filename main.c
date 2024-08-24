@@ -2,8 +2,11 @@
  * начата разработка интерфейса
  * 10 мая 2021 SI4734 поддерживает SSB с тем же патчем что и SI4735!!! 
  * В качестве контроллера использован stm32f030
- * 24 августа 2024 добавлен шаг в 4 кгц для АМ, шаг перестройки SSB 
+ * 24 августа 2024 добавлен шаг в 9 кгц для АМ, шаг перестройки SSB 
  * уменьшен до 50
+ * 24 августа 2024 наконец добавлена адаптивная cкорость перестройки
+ * в зависимости от скорости вращения энкодера меняется шаг перестройки.
+ * Теперь на ssb минимальный шаг 10гц
  */
 
 
@@ -64,8 +67,30 @@ int16_t vol=0x1a;
 120 метров (средние волны), 2.30 — 2.495 МГц (130,43 — 120,24 метра).
 */
 uint16_t bands[]={200,1000,3100,3600,5800,7200,9300,11200,13500,14200,15100,17450,21500,27000};
-uint8_t steps[]={1,4,5,10,50};
+uint8_t steps[]={1,4,9,10,50};
 uint8_t reciver_mode=0;
+
+void encoder_timer_init(){
+	rcc_periph_clock_enable(RCC_TIM1);
+	timer_set_mode(TIM1, TIM_CR1_CKD_CK_INT,
+               TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
+    timer_set_prescaler(TIM1,48000);//1ms per 1 counter step
+    timer_set_counter(TIM1,0);
+    timer_one_shot_mode(TIM1);
+	//timer_set_period(TIM2, 1000);
+	//timer_enable_counter(TIM1);
+	};
+
+uint32_t get_time_and_rest(){
+	uint32_t temp=timer_get_counter(TIM1);
+	//timer_disable_counter(TIM1);
+	timer_set_counter(TIM1,0);
+	timer_enable_counter(TIM1);
+	return (temp) ? temp : 0xffff;
+	//return 500;
+	};
+
+
 //0 - am, 1 -fm, 2 - ssb
 
 /*
@@ -112,7 +137,9 @@ if(rec_mod==AM_MODE){
 	reciver_mode=AM_MODE;
 	si4734_am_mode();
 	si4734_set_prop(AM_CHANNEL_FILTER, 0x0100);
-	si4734_set_prop(AM_SOFT_MUTE_MAX_ATTENUATION, 0);//soft mute off
+	si4734_set_prop(AM_SOFT_MUTE_SLOPE, 16);
+	si4734_set_prop(AM_SOFT_MUTE_MAX_ATTENUATION, 16);
+	si4734_set_prop(AM_SOFT_MUTE_SNR_THRESHOLD, 0); //soft mute off
 	si4734_set_prop(AM_AUTOMATIC_VOLUME_CONTROL_MAX_GAIN, 0x1a94); //20дб
 	si4734_set_prop(RX_VOLUME, vol);
 	//si4734_set_prop(AM_SEEK_BAND_TOP, 30000);
@@ -248,22 +275,21 @@ void exti2_3_isr(void){
 	//indicate(2);
 	//o_printf_at(0,6,1,0,"ISR_8_pin9=%x",((gpio_get(GPIOA,GPIO7))>>7));
 	int8_t encoder_direction;
+	uint32_t  dop_fast_coef_am_fm,dop_fast_coef_ssb;
 	if(gpio_get(GPIOA,GPIO3))encoder_direction=1;else encoder_direction=-1;
 	//o_printf_at(0,6,1,0,"ISR_8_pin9=%x",((gpio_get(GPIOA,GPIO7))>>7));
+	dop_fast_coef_ssb=500/get_time_and_rest()+1;
+	//цифирь 500 регулирует крутизну изменения скорости
+	dop_fast_coef_am_fm=dop_fast_coef_ssb/2+1;
+	//для ам и фм такой крутизны не нужно
 	if(encoder_mode==0){
-		encoder+=coef*encoder_direction;
+		encoder+=coef*encoder_direction*dop_fast_coef_am_fm;//<<<
 		if(encoder<MIN_LIMIT)encoder=MIN_LIMIT;
 		if(encoder>MAX_LIMIT)encoder=MAX_LIMIT;
 		}
-	//if(encoder_mode==1){
-	//	pwm1+=10*encoder_direction;
-	//	if(pwm1<100)pwm1=100;
-	//	if(pwm1>3300)pwm1=3300;
-	//	timer_set_oc_value(TIM3, TIM_OC4, pwm1);
-	//	}
 	if(encoder_mode==1)select_band(encoder_direction);
 	if(encoder_mode==2)select_step(encoder_direction);
-	if(encoder_mode==3)bfo-=50*encoder_direction;
+	if(encoder_mode==3)bfo-=10*encoder_direction*dop_fast_coef_ssb;//<<<
 	if(encoder_mode==4){vol+=7*encoder_direction;
 						if(vol<0)vol=0;
 						if(vol>0x3f)vol=0x3f;};
@@ -508,6 +534,7 @@ void main(){
 	rcc_clock_setup_in_hsi_out_48mhz();
 	//gpio_setup();
 	exti_encoder_init();
+	encoder_timer_init();
 	i2c_setup();
 	led_setup();
 	led_on();
@@ -519,6 +546,7 @@ void main(){
 	si4734_reset();
 	for(uint32_t i=0;i<0x5ff;i++)__asm__("nop");
 	reciver_set_mode(FM_MODE);
+	
 		
 	while(1){
 		
