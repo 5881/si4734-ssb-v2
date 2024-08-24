@@ -67,7 +67,7 @@ int16_t vol=0x1a;
 120 метров (средние волны), 2.30 — 2.495 МГц (130,43 — 120,24 метра).
 */
 uint16_t bands[]={200,1000,3100,3600,5800,7200,9300,11200,13500,14200,15100,17450,21500,27000};
-uint8_t steps[]={1,4,9,10,50};
+uint8_t steps[]={1,5,9};
 uint8_t reciver_mode=0;
 
 void encoder_timer_init(){
@@ -220,7 +220,7 @@ void reciver_am_ssb_mode(void){
 
 
 void select_band(int8_t direction){
-	static int8_t band=5;
+	static int8_t band=0;
 	band+=direction;
 	if(band<0)band=0;
 	if(band>13) band=13;
@@ -230,15 +230,15 @@ void select_step(int8_t direction){
 	static int8_t step=1;
 	step+=direction;
 	if(step<0)step=0;
-	if(step>4)step=3;
+	if(step>2)step=2;
 	coef=steps[step];
 	}
 
 void next_step(void){
-	static int8_t step=1;
+	static int8_t step=0;
 	step++;
-	if(step<0)step=3;
-	if(step>4)step=0;
+	if(step<0)step=2;
+	if(step>2)step=0;
 	coef=steps[step];
 	}
 
